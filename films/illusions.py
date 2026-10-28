@@ -50,7 +50,7 @@ def overlay_text(c, t, spec):
     q_out = 1 - ease(prog(t, T_REVEAL - 0.3, T_REVEAL))
     q_back = ease_out(prog(t, T_BACK + 0.9, T_BACK + 1.3))
     label_a = max(min(q_in, q_out), q_back)
-    c.text(CX, 238, "OPTISCHE TÄUSCHUNG", 30, (*GOLD, int(255 * max(label_a, 0.0))))
+    c.text(CX, 238, spec.get("label", "OPTISCHE TÄUSCHUNG"), 30, (*GOLD, int(255 * max(label_a, 0.0))))
     qa = max(min(q_in, q_out), q_back)
     if qa > 0:
         lines = [(l, WHITE) for l in wrap(c, spec["question"], 58, 820)]
@@ -76,15 +76,15 @@ def overlay_text(c, t, spec):
             text_block(c, spec["answer"], 330 + (1 - aa) * 16, 58, aa)
 
 
-def sounds(spec):
-    s = [(0.0, sfx.whoosh(0.35), 0.5), (0.0, drone(DUR), 0.35)]
+def sounds(spec, dur=DUR):
+    s = [(0.0, sfx.whoosh(0.35), 0.5), (0.0, drone(dur), 0.35)]
     s += [(1.0 + k * 0.5, sfx.click(), 0.35) for k in range(int((T_REVEAL - 1.0) / 0.5))]
     s += [(T_REVEAL - n, sfx.beep(880, 0.12), 0.45) for n in (3, 2, 1)]
     s += [(T_REVEAL, sfx.bass_hit(), 0.9), (T_REVEAL, sfx.whoosh(0.4), 0.5)]
     s += [(ts, sfx.whoosh(0.5), 0.45) for ts in spec["steps"]]
     s += [(spec["t_answer"], ding(), 0.7)]
     s += [(T_BACK, sfx.whoosh(0.6, False), 0.5)]
-    return s
+    return [x for x in s if x[0] < dur - 0.2]
 
 
 def ding():
@@ -290,8 +290,80 @@ EBBING = dict(
     steps=[8.4, 9.6], t_answer=10.6, draw=draw_ebbinghaus)
 
 
+# ------------------------------------------------------------------ 4. Müller-Lyer
+ML_LEN = 520
+ML_Y = (800, 1170)
+
+
+def draw_mueller(c, t):
+    c.fill(BG)
+    guides = reveal_amount(t, 8.4, 9.2)
+    fins = 1 - reveal_amount(t, 9.6, 10.4)
+    x0, x1 = CX - ML_LEN / 2, CX + ML_LEN / 2
+    col = (235, 235, 240)
+    for k, y in enumerate(ML_Y):
+        c.line([(x0, y), (x1, y)], col, 12)
+        if fins > 0:
+            fc = (*col, int(255 * fins))
+            d = 95 if k == 0 else -95      # top: fins point outward (>-<), bottom: inward (<->)
+            for x, sgn in ((x0, -1), (x1, 1)):
+                for dy in (-1, 1):
+                    c.line([(x, y), (x + sgn * d * 0.75, y + dy * 85)], fc, 12)
+    if guides > 0:
+        a = int(255 * guides)
+        top, bot = ML_Y[0] - 150, ML_Y[0] - 150 + (ML_Y[1] - ML_Y[0] + 300) * guides
+        for x in (x0, x1):
+            yy = top
+            while yy < bot:
+                c.line([(x, yy), (x, min(bot, yy + 24))], (*GOLD, a), 5, cap=False)
+                yy += 40
+
+
+MUELLER = dict(
+    slug="linien", question="Welche Linie\nist länger?",
+    answer=[("Beide Linien sind", WHITE), ("GLEICH lang!", GOLD)],
+    steps=[8.4, 9.6], t_answer=9.4, draw=draw_mueller)
+
+
 # ------------------------------------------------------------------ build
-ALL = [SCHACH, CAFE, EBBING]
+ALL = [SCHACH, CAFE, EBBING, MUELLER]
+SEG = 14.0                      # per illusion inside the 60 s compilation
+COMP = [CAFE, MUELLER, EBBING, SCHACH]
+
+
+def draw_intro(c, t):
+    c.fill(BG)
+    s = back_out(prog(t, 0.05, 0.4))
+    c.text(CX, 820, "4", int(300 * s) + 1, GOLD, stroke=8, stroke_fill=BG)
+    a = int(255 * ease_out(prog(t, 0.3, 0.6)))
+    c.text(CX, 1010, "optische Täuschungen", 62, (*WHITE, a))
+    b = int(255 * ease_out(prog(t, 0.9, 1.2)))
+    c.text(CX, 1110, "Schaffst du alle?", 62, (*GOLD, b))
+
+
+def draw_outro(c, t):
+    c.fill(BG)
+    a = ease_out(prog(t, 0.0, 0.3))
+    text_block(c, [("Wie viele hattest", WHITE), ("du richtig?", WHITE)], 860, 70, a)
+    b = ease_out(prog(t, 0.5, 0.8))
+    text_block(c, [("0 / 1 / 2 / 3 / 4", GOLD)], 1080, 70, b)
+    c.text(CX, 1220, "Schreib es in die Kommentare!", 40, (*WHITE, int(200 * b)))
+
+
+def make_compilation():
+    scenes = [Scene(2.5, draw_intro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.05, sfx.bass_hit(), 0.9),
+                                            (0.9, ding(), 0.5)], header=False, zoom=1.0, ty=1330.0)]
+    for i, spec in enumerate(COMP):
+        sp = dict(spec, label=f"OPTISCHE TÄUSCHUNG  {i + 1}/{len(COMP)}")
+
+        def draw(c, t, sp=sp):
+            sp["draw"](c, t)
+            overlay_text(c, t, sp)
+
+        scenes.append(Scene(SEG, draw, None, sounds(sp, SEG), header=False, zoom=1.0, ty=1330.0))
+    scenes.append(Scene(1.5, draw_outro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.5, sfx.click(), 0.6)],
+                        header=False, zoom=1.0, ty=1330.0))
+    return Film("Optische Täuschungen", "60s", scenes)
 
 
 def make(spec):
@@ -305,6 +377,15 @@ def make(spec):
 
 if __name__ == "__main__":
     check_checker()
+    if "--compilation" in sys.argv:
+        film = make_compilation()
+        print(f"duration {film.dur:.1f}s")
+        if "--sheet" in sys.argv:
+            print(stills(film, [1.5] + [2.5 + i * SEG + k for i in range(4) for k in (3, 9, 12)] + [59.5],
+                         "output/preview_comp", cols=7, scale=0.22))
+        else:
+            render(film, "output/optische_taeuschungen_60s.mp4")
+        sys.exit()
     names = [a for a in sys.argv[1:] if not a.startswith("--")]
     specs = [s for s in ALL if not names or s["slug"] in names]
     for spec in specs:
