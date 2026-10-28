@@ -239,7 +239,7 @@ def draw_grid(c, t, L):
 def draw_level(c, t, L):
     c.fill(BG)
     T = L["t_find"]
-    draw_grid(c, t, L)
+    (L.get("draw") or draw_grid)(c, t, L)
     if L["paw"]:
         a, b = L["paw"]
         p = ease(prog(t, a, a + 0.45)) * (1 - ease(prog(t, b - 0.45, b)))
@@ -258,8 +258,8 @@ def draw_level(c, t, L):
         c.rect(CX - 340, y, CX - 340 + 580 * k, y + 12, fill=(*(RED if late else GOLD), 235), r=6)
     else:
         a = ease_out(prog(t, T, T + 0.3))
-        text_block(c, [("Hast du es gefunden?", WHITE)], 322, 58, a)
-        c.text(CX - 40, 400, "Schreib deine Zeit in die Kommentare", 32, (*GOLD, int(255 * a)))
+        text_block(c, [(L.get("solved", "Hast du es gefunden?"), WHITE)], 322, 58, a)
+        c.text(CX - 40, 400, L.get("sub", "Schreib deine Zeit in die Kommentare"), 32, (*GOLD, int(255 * a)))
     # the cat + what it says
     say, age = None, 0.0
     for ts, txt in L["lines"]:
@@ -284,6 +284,7 @@ def level_sounds(L):
     for k, (ts, _) in enumerate(L["lines"]):
         s.append((ts, meow(0.45 + 0.1 * (k % 2), 1.0 + 0.12 * ((L["lv"] + k) % 3)), 0.55))
     s.append((T + 0.4, purr(1.6), 0.6))
+    s += L.get("extra_snd", [])
     if L["paw"]:
         s += [(L["paw"][0], sfx.whoosh(0.45), 0.7), (L["paw"][0], meow(0.7, 0.85), 0.6),
               (L["paw"][1] - 0.45, sfx.whoosh(0.4, False), 0.5)]
