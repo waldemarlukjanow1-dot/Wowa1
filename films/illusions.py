@@ -8,7 +8,7 @@ import math
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from engine import sfx
 from engine.gfx import SS, W, H, Canvas, back_out, ease, ease_out, lerp, prog
@@ -685,8 +685,204 @@ def draw_outro3(c, t):
     c.text(CX, 1150, "Wie viele hast du geschafft?", 42, (*WHITE, b))
 
 
+# ------------------------------------------------------------------ 13. stepping feet (motion)
+SF_BOX = (CX - 420, 600, CX + 420, 1380)
+SF_STRIPE = 30
+SF_BAR = 120
+SF_SPEED = 170.0
+
+
+def draw_steps(c, t):
+    c.fill(BG)
+    x0, y0, x1, y1 = SF_BOX
+    plain = ease(prog(t, 7.4, 8.2))
+    c.rect(x0, y0, x1, y1, fill=(128, 128, 128))
+    if plain < 1:
+        a = 1 - plain
+        x = x0
+        k = 0
+        while x < x1:
+            v = 0 if k % 2 == 0 else 255
+            v = int(lerp(v, 128, plain))
+            c.rect(x, y0, min(x1, x + SF_STRIPE), y1, fill=(v, v, v))
+            x += SF_STRIPE
+            k += 1
+    span = (x1 - x0) - SF_BAR
+    pos = (t * SF_SPEED) % (2 * span)
+    pos = pos if pos < span else 2 * span - pos          # ping-pong at constant speed
+    bx = x0 + pos
+    c.rect(bx, 830, bx + SF_BAR, 900, fill=(255, 226, 40))
+    c.rect(bx, 1080, bx + SF_BAR, 1150, fill=(20, 30, 120))
+    if t > 8.4:
+        a = int(255 * ease(prog(t, 8.4, 8.8)))
+        c.line([(bx + SF_BAR / 2, 800), (bx + SF_BAR / 2, 1180)], (255, 40, 60, a), 5)
+
+
+STEPS = dict(
+    slug="schritte", label="99 % SEHEN ES FALSCH", question="Welcher Balken\nist schneller?", seg=11.0,
+    t_reveal=7.0, answer=[("Beide sind GLEICH schnell", WHITE), ("und laufen GLEICHMÄSSIG!", GOLD)],
+    steps=[7.4], t_answer=8.2, draw=draw_steps)
+
+
+# ------------------------------------------------------------------ 14. Shepard tables
+TU = (95.0, -290.0)        # long edge of the table top
+TV = (150.0, 34.0)         # short edge
+TA_C, TB_C = (CX - 175, 870), (CX + 130, 1210)
+
+
+def _rot(v, deg):
+    a = math.radians(deg)
+    return (v[0] * math.cos(a) - v[1] * math.sin(a), v[0] * math.sin(a) + v[1] * math.cos(a))
+
+
+def top_poly(cen, deg):
+    u, v = _rot(TU, deg), _rot(TV, deg)
+    cx, cy = cen
+    return [(cx + sx * u[0] / 2 + sy * v[0] / 2, cy + sx * u[1] / 2 + sy * v[1] / 2)
+            for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def table(c, cen, deg):
+    pts = top_poly(cen, deg)
+    # legs from the three lowest corners
+    for p in sorted(pts, key=lambda q: q[1])[1:]:
+        c.line([p, (p[0], p[1] + 150)], (70, 46, 30), 16)
+    # table thickness: the visible lower edges
+    low = sorted(range(4), key=lambda i: pts[i][1])[-1]
+    for nb in ((low + 1) % 4, (low + 3) % 4):
+        a, b = pts[low], pts[nb]
+        c.poly([a, b, (b[0], b[1] + 24), (a[0], a[1] + 24)], fill=(120, 80, 46))
+    c.poly(pts, fill=(204, 148, 92), outline=(90, 60, 36), w=4)
+
+
+def draw_tables(c, t):
+    c.fill(BG)
+    table(c, TA_C, 0)
+    table(c, TB_C, -90)
+    m = ease(prog(t, 8.4, 10.0))
+    if m > 0:
+        cen = (lerp(TA_C[0], TB_C[0], m), lerp(TA_C[1], TB_C[1], m))
+        pts = top_poly(cen, -90 * m)
+        c.poly(pts, fill=(*GOLD, 110))
+        c.line(pts + [pts[0]], (*GOLD, 255), 6, cap=False)
+
+
+TABLES = dict(
+    slug="tische", label="FAST NIEMAND SCHAFFT DAS", question="Welche Tischplatte\nist länger?", seg=12.0,
+    t_reveal=8.0, answer=[("Beide Platten sind", WHITE), ("EXAKT gleich groß!", GOLD)],
+    steps=[8.4], t_answer=10.0, draw=draw_tables)
+
+
+# ------------------------------------------------------------------ 15. Troxler fading
+TX_BOX = (CX - 420, 575, CX + 420, 1395)
+TX_COLS = [(255, 150, 175), (150, 210, 255), (180, 245, 160), (255, 225, 140), (215, 175, 255), (140, 240, 220)]
+
+
+def troxler_image():
+    if "troxler" in _cache:
+        return _cache["troxler"]
+    x0, y0, x1, y1 = TX_BOX
+    w, h = int((x1 - x0) * SS), int((y1 - y0) * SS)
+    im = Image.new("RGB", (w, h), (196, 196, 202))
+    d = ImageDraw.Draw(im)
+    for k, col in enumerate(TX_COLS):
+        a = k * math.pi / 3 + 0.5
+        cx, cy = (w / 2 + math.cos(a) * 270 * SS, h / 2 + math.sin(a) * 270 * SS)
+        r = 115 * SS
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=col)
+    im = im.filter(ImageFilter.GaussianBlur(55 * SS))
+    _cache["troxler"] = im
+    return im
+
+
+def draw_troxler(c, t):
+    c.fill(BG)
+    x0, y0 = TX_BOX[0], TX_BOX[1]
+    c.img.paste(troxler_image(), (int(x0 * SS), int(y0 * SS)))
+    cx, cy = (TX_BOX[0] + TX_BOX[2]) / 2, (TX_BOX[1] + TX_BOX[3]) / 2
+    c.line([(cx - 22, cy), (cx + 22, cy)], (20, 20, 24), 6)
+    c.line([(cx, cy - 22), (cx, cy + 22)], (20, 20, 24), 6)
+
+
+TROXLER = dict(
+    slug="verschwinden", label="DAS IST KEIN FAKE",
+    question="Starre 10 Sek. auf das\nKREUZ. Was passiert?", seg=15.0,
+    t_count=11.0, t_reveal=11.0,
+    answer=[("Dein Gehirn hat die", WHITE), ("Farben GELÖSCHT!", GOLD)],
+    steps=[], t_answer=11.6, draw=draw_troxler)
+
+
+# ------------------------------------------------------------------ 16. spiral motion aftereffect (finale)
+SP_C, SP_R = (CX, 985), 410
+SP_STARE, SP_STILL = 13.0, 16.5
+_sp = {}
+
+
+def _spiral_grid():
+    if not _sp:
+        n = int(2 * SP_R * SS)
+        ys, xs = np.mgrid[0:n, 0:n].astype(np.float32)
+        x, y = xs - n / 2, ys - n / 2
+        r = np.sqrt(x * x + y * y) + 1
+        _sp["theta"], _sp["logr"] = np.arctan2(y, x), np.log(r)
+        _sp["mask"] = Image.fromarray(((r < n / 2) * 255).astype(np.uint8), "L")
+        _sp["n"] = n
+    return _sp
+
+
+def draw_spiral(c, t):
+    c.fill(BG)
+    g = _spiral_grid()
+    pos = (int((SP_C[0] - SP_R) * SS), int((SP_C[1] - SP_R) * SS))
+    if t < SP_STARE:
+        ph = g["theta"] * 4 + g["logr"] * 7 - t * 7.0
+        v = (np.sin(ph) > 0).astype(np.uint8) * 235 + 10
+        im = Image.fromarray(np.stack([v, v, v], -1), "RGB")
+        c.img.paste(im, pos, g["mask"])
+        c.circle(*SP_C, 12, fill=(255, 30, 30))
+    else:
+        # static picture: viewers' brains keep "moving" it after the spiral
+        key = "spiral_still"
+        if key not in _cache:
+            n = g["n"]
+            im = Image.new("RGB", (n, n), (245, 245, 245))
+            d = ImageDraw.Draw(im)
+            step = n / 12
+            for i in range(12):
+                for j in range(12):
+                    if (i + j) % 2 == 0:
+                        d.rectangle((i * step, j * step, (i + 1) * step, (j + 1) * step), fill=(40, 120, 220))
+            _cache[key] = im
+        c.img.paste(_cache[key], pos, g["mask"])
+        c.circle(*SP_C, 12, fill=(255, 30, 30))
+
+
+def post_spiral(c, t):
+    if SP_STARE <= t < SP_STILL:
+        a = int(255 * ease_out(prog(t, SP_STARE + 0.05, SP_STARE + 0.35)))
+        text_block(c, [("Weiter auf den Punkt!", WHITE), ("Siehst du das?", GOLD)], 318, 58, a / 255)
+
+
+SPIRAL = dict(
+    slug="spirale", label="NICHT WEGSCHAUEN",
+    question="Starre 12 Sek. auf\nden ROTEN PUNKT!", seg=20.0,
+    t_count=SP_STARE, t_reveal=SP_STILL, t_back=99.0, quiet=(SP_STARE, SP_STILL),
+    answer=[("Das Bild steht STILL!", WHITE), ("Schau jetzt auf deine Hand", GOLD)],
+    steps=[], t_answer=SP_STILL + 0.5, draw=draw_spiral, post=post_spiral,
+    extra_snd=[(SP_STARE, sfx.whoosh(0.3), 0.4), (SP_STARE, sfx.beep(660, 0.25), 0.4)])
+
+
+def draw_outro4(c, t):
+    c.fill(BG)
+    a = ease_out(prog(t, 0.0, 0.3))
+    text_block(c, [("Schick das jemandem", WHITE), ("und sag NICHTS!", GOLD)], 880, 66, a)
+    b = int(255 * ease_out(prog(t, 0.6, 0.9)))
+    c.text(CX, 1080, "Bei welcher bist du", 44, (*WHITE, b))
+    c.text(CX, 1140, "reingefallen? 1, 2, 3 oder 4?", 44, (*WHITE, b))
+
+
 # ------------------------------------------------------------------ build
-ALL = [SCHACH, CAFE, EBBING, MUELLER, PONZO, ZOELLNER, GRID, CONTRAST, HAT, CONFETTI, SNAKES, AFTER]
+ALL = [SCHACH, CAFE, EBBING, MUELLER, PONZO, ZOELLNER, GRID, CONTRAST, HAT, CONFETTI, SNAKES, AFTER, STEPS, TABLES, TROXLER, SPIRAL]
 SEG = 14.0                      # per illusion inside the 60 s compilation
 COMPS = {
     "1": dict(items=[CAFE, MUELLER, EBBING, SCHACH], top="optische Täuschungen", out="optische_taeuschungen_60s"),
@@ -694,6 +890,8 @@ COMPS = {
               out="optische_taeuschungen_teil2_60s"),
     "3": dict(items=[HAT, CONFETTI, SNAKES, AFTER], intro=draw_intro3, outro=draw_outro3,
               intro_dur=2.5, outro_dur=2.5, out="optische_taeuschungen_teil3_gemein_60s"),
+    "4": dict(items=[STEPS, TABLES, TROXLER, SPIRAL], intro_dur=0, outro=draw_outro4, outro_dur=2.0,
+              out="optische_taeuschungen_teil4_viral_60s"),
 }
 
 
@@ -723,8 +921,12 @@ def make_compilation(comp):
     intro = comp.get("intro", draw_intro)
     scenes = [Scene(comp.get("intro_dur", 2.5), lambda c, t: intro(c, t, comp), None, [(0.0, sfx.whoosh(0.4), 0.5), (0.05, sfx.bass_hit(), 0.9),
                                             (0.9, ding(), 0.5)], header=False, zoom=1.0, ty=1330.0)]
+    if not comp.get("intro_dur", 2.5):
+        scenes = []
     for i, spec in enumerate(COMP):
         sp = dict(spec, label=f"OPTISCHE TÄUSCHUNG  {i + 1}/{len(COMP)}")
+        if spec.get("label"):
+            sp["label"] = spec["label"] + f"  ·  {i + 1}/{len(COMP)}"
 
         def draw(c, t, sp=sp):
             sp["draw"](c, t)
@@ -759,7 +961,8 @@ if __name__ == "__main__":
         print(f"duration {film.dur:.1f}s")
         if "--sheet" in sys.argv:
             st = film.starts
-            print(stills(film, [1.5] + [st[i + 1] + k * film.scenes[i + 1].dur for i in range(4) for k in (0.3, 0.62, 0.8, 0.95)] + [59.5],
+            o = 1 if comp.get("intro_dur", 2.5) else 0
+            print(stills(film, [0.2] + [st[i + o] + k * film.scenes[i + o].dur for i in range(4) for k in (0.3, 0.62, 0.8, 0.95)] + [59.5],
                          f"output/preview_comp{key}", cols=7, scale=0.22))
         else:
             render(film, f"output/{comp['out']}.mp4")

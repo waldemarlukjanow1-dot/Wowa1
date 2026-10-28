@@ -172,8 +172,24 @@ class Canvas:
              weight="Black", shake=True):
         X, Y = self.p(x, y) if shake else (x * SS, y * SS)
         z = self.zoom if shake else 1.0
-        self.d.text((X, Y), s, font=font(max(1, int(size * z)), weight), fill=fill, anchor=anchor,
-                    stroke_width=int(stroke * SS * z), stroke_fill=stroke_fill)
+        f = font(max(1, int(size * z)), weight)
+        sw = int(stroke * SS * z)
+        alpha = fill[3] if len(fill) == 4 else 255
+        if alpha >= 255:
+            self.d.text((X, Y), s, font=f, fill=fill, anchor=anchor, stroke_width=sw, stroke_fill=stroke_fill)
+            return
+        if alpha <= 0:
+            return
+        # PIL ignores the alpha of text fills, so composite through a mask instead
+        box = self.d.textbbox((X, Y), s, font=f, anchor=anchor, stroke_width=sw)
+        x0, y0 = int(box[0]) - 2, int(box[1]) - 2
+        size_ = (int(box[2]) - x0 + 4, int(box[3]) - y0 + 4)
+        for col, width, only_stroke in (((stroke_fill, sw, True),) if sw else ()) + ((fill, 0, False),):
+            m = Image.new("L", size_, 0)
+            ImageDraw.Draw(m).text((X - x0, Y - y0), s, font=f, fill=255, anchor=anchor,
+                                   stroke_width=width if only_stroke else 0, stroke_fill=255)
+            m = m.point(lambda v: v * alpha // 255)
+            self.img.paste(tuple(col[:3]), (x0, y0, x0 + size_[0], y0 + size_[1]), m)
 
     def text_w(self, s, size, weight="Black"):
         return self.d.textlength(s, font=font(size, weight)) / SS
