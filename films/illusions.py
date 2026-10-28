@@ -885,12 +885,13 @@ def draw_outro4(c, t):
 ALL = [SCHACH, CAFE, EBBING, MUELLER, PONZO, ZOELLNER, GRID, CONTRAST, HAT, CONFETTI, SNAKES, AFTER, STEPS, TABLES, TROXLER, SPIRAL]
 SEG = 14.0                      # per illusion inside the 60 s compilation
 COMPS = {
-    "1": dict(items=[CAFE, MUELLER, EBBING, SCHACH], top="optische Täuschungen", out="optische_taeuschungen_60s"),
-    "2": dict(items=[PONZO, ZOELLNER, GRID, CONTRAST], top="NEUE Täuschungen", part="TEIL 2",
+    "1": dict(cta="FOLGEN für Teil 2", items=[CAFE, MUELLER, EBBING, SCHACH], top="optische Täuschungen", outro_dur=4.0,
+              out="optische_taeuschungen_60s"),
+    "2": dict(cta="FOLGEN für Teil 3", items=[PONZO, ZOELLNER, GRID, CONTRAST], top="NEUE Täuschungen", part="TEIL 2", outro_dur=4.0,
               out="optische_taeuschungen_teil2_60s"),
-    "3": dict(items=[HAT, CONFETTI, SNAKES, AFTER], intro=draw_intro3, outro=draw_outro3,
-              intro_dur=2.5, outro_dur=2.5, out="optische_taeuschungen_teil3_gemein_60s"),
-    "4": dict(items=[STEPS, TABLES, TROXLER, SPIRAL], intro_dur=0, outro=draw_outro4, outro_dur=2.0,
+    "3": dict(cta="FOLGEN für Teil 4", items=[HAT, CONFETTI, SNAKES, AFTER], intro=draw_intro3, outro=draw_outro3,
+              intro_dur=2.5, outro_dur=5.0, out="optische_taeuschungen_teil3_gemein_60s"),
+    "4": dict(cta="FOLGEN für Teil 5", items=[STEPS, TABLES, TROXLER, SPIRAL], intro_dur=0, outro=draw_outro4, outro_dur=4.5,
               out="optische_taeuschungen_teil4_viral_60s"),
 }
 
@@ -905,6 +906,13 @@ def draw_intro(c, t, comp):
     c.text(CX, 1010, comp["top"], 62, (*WHITE, a))
     b = int(255 * ease_out(prog(t, 0.9, 1.2)))
     c.text(CX, 1110, "Schaffst du alle?", 62, (*GOLD, b))
+
+
+def follow_cta(c, a, txt="FOLGEN für mehr"):
+    """'Follow for more' pill shown at the end of every video."""
+    w = c.text_w(txt, 42) + 90
+    c.rect(CX - w / 2, 1290, CX + w / 2, 1370, fill=(214, 36, 44, int(255 * a)), r=40)
+    c.text(CX, 1331, txt, 42, (*WHITE, int(255 * a)))
 
 
 def draw_outro(c, t):
@@ -937,7 +945,13 @@ def make_compilation(comp):
         seg = sp.get("seg", SEG)
         scenes.append(Scene(seg, draw, None, sounds(sp, seg), header=False, zoom=1.0, ty=1330.0))
     outro = comp.get("outro", draw_outro)
-    scenes.append(Scene(comp.get("outro_dur", 1.5), outro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.5, sfx.click(), 0.6)],
+    def outro_cta(c, t, outro=outro):
+        outro(c, t)
+        a = ease_out(prog(t, 1.6, 2.0))
+        if a > 0:
+            follow_cta(c, a, comp.get("cta", "FOLGEN für mehr"))
+
+    scenes.append(Scene(comp.get("outro_dur", 4.0), outro_cta, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.5, sfx.click(), 0.6)],
                         header=False, zoom=1.0, ty=1330.0))
     return Film("Optische Täuschungen", "60s", scenes)
 
