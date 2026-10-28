@@ -325,18 +325,177 @@ MUELLER = dict(
     steps=[8.4, 9.6], t_answer=9.4, draw=draw_mueller)
 
 
-# ------------------------------------------------------------------ build
-ALL = [SCHACH, CAFE, EBBING, MUELLER]
-SEG = 14.0                      # per illusion inside the 60 s compilation
-COMP = [CAFE, MUELLER, EBBING, SCHACH]
+# ------------------------------------------------------------------ 5. Ponzo (railway)
+PZ_LEN = 250
+PZ_Y = (730, 1250)
 
 
-def draw_intro(c, t):
+def draw_ponzo(c, t):
     c.fill(BG)
+    tracks = 1 - reveal_amount(t, 8.4, 9.2)
+    move = reveal_amount(t, 9.6, 10.6)
+    if tracks > 0:
+        a = int(255 * tracks)
+        top_y, bot_y = 540, 1440
+        lt, rt, lb, rb = CX - 40, CX + 40, CX - 430, CX + 430
+        y = bot_y
+        gap = 70
+        while y > top_y + 10:          # sleepers, closer together towards the horizon
+            k = (y - top_y) / (bot_y - top_y)
+            c.line([(lerp(lt, lb, k) - 20 * k, y), (lerp(rt, rb, k) + 20 * k, y)], (120, 92, 70, a), 4 + 14 * k)
+            gap = 12 + 66 * k
+            y -= gap
+        for x0, x1 in ((lt, lb), (rt, rb)):
+            c.line([(x0, top_y), (x1, bot_y)], (190, 196, 206, a), 12)
+    ys = (lerp(PZ_Y[0], 940, move), lerp(PZ_Y[1], 1060, move))
+    for y in ys:
+        c.rect(CX - PZ_LEN / 2, y - 16, CX + PZ_LEN / 2, y + 16, fill=GOLD, r=4)
+    if move > 0.6:
+        a = int(255 * ease(prog(move, 0.6, 1)))
+        for x in (CX - PZ_LEN / 2, CX + PZ_LEN / 2):
+            yy = 860
+            while yy < 1140:
+                c.line([(x, yy), (x, yy + 22)], (255, 255, 255, a), 4, cap=False)
+                yy += 38
+
+
+PONZO = dict(
+    slug="gleise", question="Welcher gelbe Balken\nist länger?",
+    answer=[("Beide Balken sind", WHITE), ("GLEICH lang!", GOLD)],
+    steps=[8.4, 9.6], t_answer=10.4, draw=draw_ponzo)
+
+
+# ------------------------------------------------------------------ 6. Zöllner
+ZB = (CX - 400, 590, CX + 400, 1390)   # box
+
+
+def clip_line(px, py, dx, dy, box):
+    """Clip the infinite line p + s*d to box; returns two points or None (Liang-Barsky)."""
+    x0, y0, x1, y1 = box
+    lo, hi = -1e9, 1e9
+    for p, q in ((-dx, px - x0), (dx, x1 - px), (-dy, py - y0), (dy, y1 - py)):
+        if abs(p) < 1e-9:
+            if q < 0:
+                return None
+            continue
+        r = q / p
+        if p < 0:
+            lo = max(lo, r)
+        else:
+            hi = min(hi, r)
+    if lo > hi:
+        return None
+    return (px + dx * lo, py + dy * lo), (px + dx * hi, py + dy * hi)
+
+
+def draw_zoellner(c, t):
+    c.fill(BG)
+    hatch = 1 - reveal_amount(t, 8.4, 9.4)
+    guide = reveal_amount(t, 9.6, 10.4)
+    d = (0.7071, 0.7071)
+    cxm, cym = (ZB[0] + ZB[2]) / 2, (ZB[1] + ZB[3]) / 2
+    for k in range(-4, 5):
+        off = k * 130
+        px, py = cxm - d[1] * off, cym + d[0] * off          # shift along the normal
+        seg = clip_line(px, py, *d, ZB)
+        if not seg:
+            continue
+        (ax, ay), (bx, by) = seg
+        col = (240, 240, 245)
+        if guide > 0:
+            col = (lerp(240, 255, guide), lerp(240, 200, guide), lerp(245, 61, guide))
+        c.line([(ax, ay), (bx, by)], tuple(int(v) for v in col), 8)
+        if hatch > 0:
+            L = math.hypot(bx - ax, by - ay)
+            s_ = 30.0
+            while s_ < L - 30:
+                hx, hy = ax + d[0] * s_, ay + d[1] * s_
+                if k % 2 == 0:
+                    a0, a1 = (hx - 34, hy), (hx + 34, hy)
+                else:
+                    a0, a1 = (hx, hy - 34), (hx, hy + 34)
+                c.line([a0, a1], (240, 240, 245, int(255 * hatch)), 6)
+                s_ += 46
+
+
+ZOELLNER = dict(
+    slug="parallel", question="Laufen diese Linien\nparallel?",
+    answer=[("JA! Alle Linien sind", WHITE), ("PERFEKT parallel!", GOLD)],
+    steps=[8.4, 9.6], t_answer=9.6, draw=draw_zoellner)
+
+
+# ------------------------------------------------------------------ 7. scintillating grid
+GRID_N, GRID_SP = 9, 92
+
+
+def draw_grid(c, t):
+    c.fill((0, 0, 0))
+    lines = 1 - reveal_amount(t, 8.4, 9.4)
+    span = GRID_SP * (GRID_N - 1)
+    x0, y0 = CX - span / 2, 985 - span / 2
+    if lines > 0:
+        g = int(105 * lines)
+        for i in range(GRID_N):
+            c.rect(x0 + i * GRID_SP - 7, y0 - 40, x0 + i * GRID_SP + 7, y0 + span + 40, fill=(g, g, g))
+            c.rect(x0 - 40, y0 + i * GRID_SP - 7, x0 + span + 40, y0 + i * GRID_SP + 7, fill=(g, g, g))
+    for i in range(GRID_N):
+        for j in range(GRID_N):
+            c.circle(x0 + i * GRID_SP, y0 + j * GRID_SP, 11.5, fill=WHITE)
+
+
+GRID = dict(
+    slug="punkte", question="Wie viele SCHWARZE\nPunkte siehst du?",
+    answer=[("KEINEN! Alle Punkte", WHITE), ("sind WEISS!", GOLD)],
+    steps=[8.4], t_answer=9.2, draw=draw_grid)
+
+
+# ------------------------------------------------------------------ 8. contrast bar
+CB = (CX - 425, 590, CX + 425, 1380)
+BAR_G = (128, 128, 128)
+
+
+def draw_contrast(c, t):
+    c.fill(BG)
+    flat = reveal_amount(t, 8.4, 9.6)
+    x0, y0, x1, y1 = CB
+    step = 4
+    x = x0
+    while x < x1:
+        k = (x - x0) / (x1 - x0)
+        v = lerp(lerp(0, 255, k), 128, 0)            # black -> white gradient
+        v = lerp(v, 60, flat)                         # reveal: background goes flat
+        c.rect(x, y0, x + step + 1, y1, fill=(int(v), int(v), int(v)))
+        x += step
+    c.rect(x0 + 40, 940, x1 - 40, 1030, fill=BAR_G)
+    out = reveal_amount(t, 9.8, 10.4)
+    if out > 0:
+        c.rect(x0 + 34, 934, x1 - 34, 1036, outline=(*GOLD, int(255 * out)), w=6)
+
+
+CONTRAST = dict(
+    slug="balken", question="Ist der Balken überall\ngleich grau?",
+    answer=[("JA! Der Balken ist", WHITE), ("ÜBERALL gleich grau!", GOLD)],
+    steps=[8.4, 9.8], t_answer=9.8, draw=draw_contrast)
+
+
+# ------------------------------------------------------------------ build
+ALL = [SCHACH, CAFE, EBBING, MUELLER, PONZO, ZOELLNER, GRID, CONTRAST]
+SEG = 14.0                      # per illusion inside the 60 s compilation
+COMPS = {
+    "1": dict(items=[CAFE, MUELLER, EBBING, SCHACH], top="optische Täuschungen", out="optische_taeuschungen_60s"),
+    "2": dict(items=[PONZO, ZOELLNER, GRID, CONTRAST], top="NEUE Täuschungen", part="TEIL 2",
+              out="optische_taeuschungen_teil2_60s"),
+}
+
+
+def draw_intro(c, t, comp):
+    c.fill(BG)
+    if comp.get("part"):
+        c.text(CX, 640, comp["part"], 44, (*WHITE, int(200 * ease_out(prog(t, 0, 0.3)))))
     s = back_out(prog(t, 0.05, 0.4))
     c.text(CX, 820, "4", int(300 * s) + 1, GOLD, stroke=8, stroke_fill=BG)
     a = int(255 * ease_out(prog(t, 0.3, 0.6)))
-    c.text(CX, 1010, "optische Täuschungen", 62, (*WHITE, a))
+    c.text(CX, 1010, comp["top"], 62, (*WHITE, a))
     b = int(255 * ease_out(prog(t, 0.9, 1.2)))
     c.text(CX, 1110, "Schaffst du alle?", 62, (*GOLD, b))
 
@@ -350,8 +509,9 @@ def draw_outro(c, t):
     c.text(CX, 1220, "Schreib es in die Kommentare!", 40, (*WHITE, int(200 * b)))
 
 
-def make_compilation():
-    scenes = [Scene(2.5, draw_intro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.05, sfx.bass_hit(), 0.9),
+def make_compilation(comp):
+    COMP = comp["items"]
+    scenes = [Scene(2.5, lambda c, t: draw_intro(c, t, comp), None, [(0.0, sfx.whoosh(0.4), 0.5), (0.05, sfx.bass_hit(), 0.9),
                                             (0.9, ding(), 0.5)], header=False, zoom=1.0, ty=1330.0)]
     for i, spec in enumerate(COMP):
         sp = dict(spec, label=f"OPTISCHE TÄUSCHUNG  {i + 1}/{len(COMP)}")
@@ -378,13 +538,16 @@ def make(spec):
 if __name__ == "__main__":
     check_checker()
     if "--compilation" in sys.argv:
-        film = make_compilation()
+        key = sys.argv[sys.argv.index("--compilation") + 1] if len(sys.argv) > sys.argv.index("--compilation") + 1 \
+            and not sys.argv[sys.argv.index("--compilation") + 1].startswith("--") else "1"
+        comp = COMPS[key]
+        film = make_compilation(comp)
         print(f"duration {film.dur:.1f}s")
         if "--sheet" in sys.argv:
             print(stills(film, [1.5] + [2.5 + i * SEG + k for i in range(4) for k in (3, 9, 12)] + [59.5],
-                         "output/preview_comp", cols=7, scale=0.22))
+                         f"output/preview_comp{key}", cols=7, scale=0.22))
         else:
-            render(film, "output/optische_taeuschungen_60s.mp4")
+            render(film, f"output/{comp['out']}.mp4")
         sys.exit()
     names = [a for a in sys.argv[1:] if not a.startswith("--")]
     specs = [s for s in ALL if not names or s["slug"] in names]
