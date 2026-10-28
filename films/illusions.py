@@ -46,6 +46,12 @@ def text_block(c, lines, y, size, alpha=1.0, gap=1.18):
 
 
 def overlay_text(c, t, spec):
+    T_REVEAL = spec.get("t_reveal", 8.0)
+    T_BACK = spec.get("t_back", 15.6)
+    T_COUNT = spec.get("t_count", T_REVEAL)
+    q = spec.get("quiet")
+    if q and q[0] <= t < q[1]:
+        return
     q_in = ease_out(prog(t, 0.0, 0.35))
     q_out = 1 - ease(prog(t, T_REVEAL - 0.3, T_REVEAL))
     q_back = ease_out(prog(t, T_BACK + 0.9, T_BACK + 1.3))
@@ -56,14 +62,14 @@ def overlay_text(c, t, spec):
         lines = [(l, WHITE) for l in wrap(c, spec["question"], 58, 820)]
         text_block(c, lines, 318 + (1 - qa) * 16, 58, qa)
     # countdown bar while the viewer looks
-    if 1.0 <= t < T_REVEAL:
-        k = 1 - prog(t, 1.0, T_REVEAL)
+    if 1.0 <= t < T_COUNT:
+        k = 1 - prog(t, 1.0, T_COUNT)
         y = 318 + 58 * 1.18 * (len(wrap(c, spec["question"], 58, 820)) - 1) + 62
         c.rect(CX - 300, y, CX + 300, y + 10, fill=(255, 255, 255, 40), r=5)
         c.rect(CX - 300, y, CX - 300 + 600 * k, y + 10, fill=(*GOLD, 230), r=5)
-        n = int(math.ceil(T_REVEAL - t))
+        n = int(math.ceil(T_COUNT - t))
         if n <= 3:
-            p = (T_REVEAL - t) % 1.0
+            p = (T_COUNT - t) % 1.0
             s = back_out(prog(1 - p, 0, 0.25))
             c.text(CX, 1395, str(n), int(120 * s) + 1, (*WHITE, 235), stroke=7, stroke_fill=BG)
     # reveal banner + answer
@@ -77,9 +83,13 @@ def overlay_text(c, t, spec):
 
 
 def sounds(spec, dur=DUR):
+    T_REVEAL = spec.get("t_reveal", 8.0)
+    T_BACK = spec.get("t_back", 15.6)
+    T_COUNT = spec.get("t_count", T_REVEAL)
     s = [(0.0, sfx.whoosh(0.35), 0.5), (0.0, drone(dur), 0.35)]
-    s += [(1.0 + k * 0.5, sfx.click(), 0.35) for k in range(int((T_REVEAL - 1.0) / 0.5))]
-    s += [(T_REVEAL - n, sfx.beep(880, 0.12), 0.45) for n in (3, 2, 1)]
+    s += [(1.0 + k * 0.5, sfx.click(), 0.35) for k in range(int((T_COUNT - 1.0) / 0.5))]
+    s += [(T_COUNT - n, sfx.beep(880, 0.12), 0.45) for n in (3, 2, 1)]
+    s += spec.get("extra_snd", [])
     s += [(T_REVEAL, sfx.bass_hit(), 0.9), (T_REVEAL, sfx.whoosh(0.4), 0.5)]
     s += [(ts, sfx.whoosh(0.5), 0.45) for ts in spec["steps"]]
     s += [(spec["t_answer"], ding(), 0.7)]
@@ -478,13 +488,212 @@ CONTRAST = dict(
     steps=[8.4, 9.8], t_answer=9.8, draw=draw_contrast)
 
 
+# ------------------------------------------------------------------ 9. top hat (vertical-horizontal)
+HAT_W, HAT_Y = 420, 1230          # brim width == total hat height
+
+
+def draw_hat(c, t):
+    c.fill(BG)
+    x0, x1 = CX - HAT_W / 2, CX + HAT_W / 2
+    top = HAT_Y - HAT_W
+    crown = (235, 235, 240)
+    c.rect(CX - 115, top, CX + 115, HAT_Y - 20, fill=crown)
+    c.rect(CX - 115, HAT_Y - 110, CX + 115, HAT_Y - 60, fill=(214, 36, 44))
+    c.rect(x0, HAT_Y - 30, x1, HAT_Y, fill=crown, r=10)
+    rot = ease(prog(t, 6.9, 8.0))
+    if rot > 0:
+        # a gold copy of the brim swings up next to the hat
+        a = math.radians(-90 * rot)
+        px, py = x1 + 40, HAT_Y
+        L = HAT_W
+        ex, ey = px - math.cos(a) * L, py + math.sin(a) * L
+        c.line([(px, py), (ex, ey)], (*GOLD, 235), 26)
+    if t > 8.1:
+        a = int(255 * ease(prog(t, 8.1, 8.5)))
+        for yy in (top, HAT_Y):
+            xx = x0 - 30
+            while xx < x1 + 90:
+                c.line([(xx, yy), (xx + 22, yy)], (255, 255, 255, a), 4, cap=False)
+                xx += 38
+
+
+HAT = dict(
+    slug="hut", question="Ist der Hut höher\nals breit?", seg=11.0, t_reveal=6.5,
+    answer=[("Der Hut ist GENAU so", WHITE), ("hoch wie breit!", GOLD)],
+    steps=[6.9], t_answer=8.1, draw=draw_hat)
+
+
+# ------------------------------------------------------------------ 10. confetti / colour assimilation
+STRIPE = 9
+STRIPES = [(236, 32, 52), (20, 190, 80), (40, 90, 255)]
+BALL = (196, 196, 196)
+BALLS = [(CX - 250, 700, 0), (CX + 60, 640, 1), (CX + 300, 790, 2), (CX - 120, 900, 2), (CX + 180, 1010, 0),
+         (CX - 300, 1080, 1), (CX + 330, 1200, 1), (CX - 60, 1180, 0), (CX - 280, 1300, 2), (CX + 90, 1330, 2)]
+BR = 68
+BOX = (CX - 420, 560, CX + 420, 1420)
+
+
+def draw_confetti(c, t):
+    c.fill(BG)
+    plain = ease(prog(t, 8.4, 9.4))
+    x0, y0, x1, y1 = BOX
+    y = y0
+    k = 0
+    while y < y1:
+        c.rect(x0, y, x1, y + STRIPE, fill=STRIPES[k % 3])
+        y += STRIPE
+        k += 1
+    for bx, by, g in BALLS:
+        c.circle(bx, by, BR, fill=BALL)
+        if plain < 1:
+            col = (*STRIPES[g], int(255 * (1 - plain)))
+            # the stripes of one colour run OVER the ball -> it takes on that colour
+            y = y0 + g * STRIPE
+            while y < y1:
+                yc0, yc1 = max(y, by - BR), min(y + STRIPE, by + BR)
+                if yc1 > yc0:
+                    ym = (yc0 + yc1) / 2
+                    hw = math.sqrt(max(0, BR * BR - (ym - by) ** 2))
+                    c.rect(bx - hw, yc0, bx + hw, yc1, fill=col)
+                y += 3 * STRIPE
+
+
+CONFETTI = dict(
+    slug="kugeln", question="Wie viele ROTE\nKugeln siehst du?", seg=12.0, t_reveal=8.0,
+    answer=[("KEINE! Alle Kugeln", WHITE), ("sind GRAU!", GOLD)],
+    steps=[8.4], t_answer=9.2, draw=draw_confetti)
+
+
+# ------------------------------------------------------------------ 11. rotating snakes (peripheral drift)
+SN_C = [(CX - 205, 790), (CX + 205, 790), (CX - 205, 1200), (CX + 205, 1200)]
+SN_R = 200
+SN_MOVE = [(12, 12, 12), (40, 70, 200), (250, 250, 250), (250, 210, 30)]   # black, blue, white, yellow
+SN_STILL = [(12, 12, 12), (130, 130, 130), (250, 250, 250), (130, 130, 130)]
+
+
+def snakes_image(cols):
+    key = ("snakes", tuple(cols))
+    if key in _cache:
+        return _cache[key]
+    L = Canvas().layer()
+    props = [0.14, 0.36, 0.14, 0.36]
+    for di, (cx, cy) in enumerate(SN_C):
+        L.circle(cx, cy, SN_R + 6, fill=(60, 60, 66))
+        rings = 6
+        for ri in range(rings):
+            r = SN_R - ri * (SN_R - 30) / rings
+            n = 28 - ri * 3
+            flip = (ri + di) % 2
+            off = ri * 7.0
+            for k in range(n):
+                a = off + k * 360 / n
+                order = range(4) if not flip else range(3, -1, -1)
+                for j in order:
+                    span = 360 / n * props[j]
+                    L.pie(cx, cy, r, a, a + span + 0.4, cols[j])
+                    a += span
+        L.circle(cx, cy, 30, fill=(60, 60, 66))
+    _cache[key] = L
+    return L
+
+
+def draw_snakes(c, t):
+    c.fill(BG)
+    still = ease(prog(t, 8.4, 9.4))
+    if still <= 0:
+        c.paste(snakes_image(SN_MOVE))
+    elif still >= 1:
+        c.paste(snakes_image(SN_STILL))
+    else:
+        a, b = snakes_image(SN_MOVE).img, snakes_image(SN_STILL).img
+        L = Canvas().layer()
+        L.img = Image.blend(a, b, still)
+        c.paste(L)
+
+
+SNAKES = dict(
+    slug="bewegung", question="Das ist ein STANDBILD.\nWarum dreht es sich?", seg=12.0, t_reveal=8.0,
+    answer=[("Es dreht sich NICHT!", WHITE), ("Dein Gehirn erfindet es.", GOLD)],
+    steps=[8.4], t_answer=9.2, draw=draw_snakes)
+
+
+# ------------------------------------------------------------------ 12. afterimage flag (finale)
+FL = (CX - 410, 985 - 246, CX + 410, 985 + 246)
+FLAG_REAL = [(16, 16, 16), (221, 0, 0), (255, 206, 0)]
+FLAG_NEG = [tuple(255 - v for v in col) for col in FLAG_REAL]
+T_STARE, T_WHITE = 12.0, 15.0
+
+
+def flag(c, box, cols, alpha=255):
+    x0, y0, x1, y1 = box
+    h = (y1 - y0) / 3
+    for i, col in enumerate(cols):
+        c.rect(x0, y0 + i * h, x1, y0 + (i + 1) * h + (1 if i < 2 else 0), fill=(*col, alpha))
+
+
+def draw_afterimage(c, t):
+    if t < T_STARE:
+        c.fill(BG)
+        flag(c, FL, FLAG_NEG)
+        c.circle(CX, 985, 15, fill=(0, 0, 0))
+        c.circle(CX, 985, 9, fill=(255, 30, 30))
+    elif t < T_WHITE:
+        c.fill((250, 250, 250))
+        c.circle(CX, 985, 9, fill=(0, 0, 0))
+    else:
+        c.fill(BG)
+        a = ease_out(prog(t, T_WHITE + 0.9, T_WHITE + 1.4))
+        sm = lambda cx: (cx - 190, 1020 - 114, cx + 190, 1020 + 114)
+        flag(c, sm(CX - 215), FLAG_NEG, int(255 * a))
+        b = ease_out(prog(t, T_WHITE + 1.6, T_WHITE + 2.1))
+        flag(c, sm(CX + 215), FLAG_REAL, int(255 * b))
+        if b > 0:
+            c.text(CX - 215, 1190, "gezeigt", 36, (*WHITE, int(200 * a)))
+            c.text(CX + 215, 1190, "gesehen", 36, (*GOLD, int(255 * b)))
+
+
+def post_afterimage(c, t):
+    if T_STARE <= t < T_WHITE:
+        a = int(255 * ease_out(prog(t, T_STARE + 0.1, T_STARE + 0.4)))
+        c.text(CX, 330, "Weiter auf den Punkt", 58, (*BG, a))
+        c.text(CX, 398, "schauen... und blinzeln!", 58, (*BG, a))
+
+
+AFTER = dict(
+    slug="flagge", question="Starre 12 Sekunden auf\nden ROTEN PUNKT!", seg=20.0,
+    t_count=T_STARE, t_reveal=T_WHITE, t_back=99.0, quiet=(T_STARE, T_WHITE),
+    answer=[("Du hast Schwarz-Rot-Gold", WHITE), ("auf WEISS gesehen!", GOLD)],
+    steps=[T_WHITE + 0.9, T_WHITE + 1.6], t_answer=T_WHITE + 0.3, draw=draw_afterimage, post=post_afterimage,
+    extra_snd=[(T_STARE, sfx.whoosh(0.3), 0.3), (T_STARE, sfx.beep(660, 0.25), 0.4)])
+
+
+def draw_intro3(c, t, comp):
+    c.fill(BG)
+    s = back_out(prog(t, 0.05, 0.4))
+    c.text(CX, 780, "ACHTUNG", int(120 * s) + 1, (214, 36, 44), stroke=8, stroke_fill=BG)
+    a = ease_out(prog(t, 0.4, 0.7))
+    text_block(c, [("Diese 4 Täuschungen", WHITE), ("sind richtig GEMEIN", GOLD)], 950, 62, a)
+    b = int(255 * ease_out(prog(t, 1.2, 1.5)))
+    c.text(CX, 1150, "Fast jeder fällt rein…", 44, (*WHITE, b))
+
+
+def draw_outro3(c, t):
+    c.fill(BG)
+    a = ease_out(prog(t, 0.0, 0.3))
+    text_block(c, [("Schick das jemandem,", WHITE), ("der IMMER alles", WHITE), ("besser weiß!", GOLD)], 860, 64, a)
+    b = int(255 * ease_out(prog(t, 0.8, 1.1)))
+    c.text(CX, 1150, "Wie viele hast du geschafft?", 42, (*WHITE, b))
+
+
 # ------------------------------------------------------------------ build
-ALL = [SCHACH, CAFE, EBBING, MUELLER, PONZO, ZOELLNER, GRID, CONTRAST]
+ALL = [SCHACH, CAFE, EBBING, MUELLER, PONZO, ZOELLNER, GRID, CONTRAST, HAT, CONFETTI, SNAKES, AFTER]
 SEG = 14.0                      # per illusion inside the 60 s compilation
 COMPS = {
     "1": dict(items=[CAFE, MUELLER, EBBING, SCHACH], top="optische Täuschungen", out="optische_taeuschungen_60s"),
     "2": dict(items=[PONZO, ZOELLNER, GRID, CONTRAST], top="NEUE Täuschungen", part="TEIL 2",
               out="optische_taeuschungen_teil2_60s"),
+    "3": dict(items=[HAT, CONFETTI, SNAKES, AFTER], intro=draw_intro3, outro=draw_outro3,
+              intro_dur=2.5, outro_dur=2.5, out="optische_taeuschungen_teil3_gemein_60s"),
 }
 
 
@@ -511,7 +720,8 @@ def draw_outro(c, t):
 
 def make_compilation(comp):
     COMP = comp["items"]
-    scenes = [Scene(2.5, lambda c, t: draw_intro(c, t, comp), None, [(0.0, sfx.whoosh(0.4), 0.5), (0.05, sfx.bass_hit(), 0.9),
+    intro = comp.get("intro", draw_intro)
+    scenes = [Scene(comp.get("intro_dur", 2.5), lambda c, t: intro(c, t, comp), None, [(0.0, sfx.whoosh(0.4), 0.5), (0.05, sfx.bass_hit(), 0.9),
                                             (0.9, ding(), 0.5)], header=False, zoom=1.0, ty=1330.0)]
     for i, spec in enumerate(COMP):
         sp = dict(spec, label=f"OPTISCHE TÄUSCHUNG  {i + 1}/{len(COMP)}")
@@ -519,9 +729,13 @@ def make_compilation(comp):
         def draw(c, t, sp=sp):
             sp["draw"](c, t)
             overlay_text(c, t, sp)
+            if sp.get("post"):
+                sp["post"](c, t)
 
-        scenes.append(Scene(SEG, draw, None, sounds(sp, SEG), header=False, zoom=1.0, ty=1330.0))
-    scenes.append(Scene(1.5, draw_outro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.5, sfx.click(), 0.6)],
+        seg = sp.get("seg", SEG)
+        scenes.append(Scene(seg, draw, None, sounds(sp, seg), header=False, zoom=1.0, ty=1330.0))
+    outro = comp.get("outro", draw_outro)
+    scenes.append(Scene(comp.get("outro_dur", 1.5), outro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.5, sfx.click(), 0.6)],
                         header=False, zoom=1.0, ty=1330.0))
     return Film("Optische Täuschungen", "60s", scenes)
 
@@ -544,7 +758,8 @@ if __name__ == "__main__":
         film = make_compilation(comp)
         print(f"duration {film.dur:.1f}s")
         if "--sheet" in sys.argv:
-            print(stills(film, [1.5] + [2.5 + i * SEG + k for i in range(4) for k in (3, 9, 12)] + [59.5],
+            st = film.starts
+            print(stills(film, [1.5] + [st[i + 1] + k * film.scenes[i + 1].dur for i in range(4) for k in (0.3, 0.62, 0.8, 0.95)] + [59.5],
                          f"output/preview_comp{key}", cols=7, scale=0.22))
         else:
             render(film, f"output/{comp['out']}.mp4")
