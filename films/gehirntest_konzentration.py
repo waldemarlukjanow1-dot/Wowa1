@@ -57,8 +57,11 @@ def fly(c, x, y, t, ang=0.0, flying=True, s=1.0):
     else:
         for side in (-1, 1):
             c.ellipse(*P(-10, side * 6), 14 * s, 6 * s, fill=(210, 225, 240, 170))
-    c.ellipse(*P(0, 0), 14 * s, 9 * s, fill=(28, 30, 34))
-    c.circle(*P(13, 0), 7 * s, fill=(28, 30, 34))
+    # light rim so the dark fly stays visible on the dark background
+    c.ellipse(*P(0, 0), 17 * s, 12 * s, fill=(150, 156, 168))
+    c.circle(*P(13, 0), 9.5 * s, fill=(150, 156, 168))
+    c.ellipse(*P(0, 0), 14 * s, 9 * s, fill=(40, 42, 48))
+    c.circle(*P(13, 0), 7 * s, fill=(40, 42, 48))
     for side in (-1, 1):
         c.circle(*P(16, side * 4.5), 3.6 * s, fill=(170, 40, 40))
 
