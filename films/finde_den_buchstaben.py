@@ -33,7 +33,6 @@ LEVELS = [
     lv("Finde das m!", "rn", "m", 10, 20, 44, 8.0, 77, weight="Medium"),
     lv("Finde die 1!", "l", "1", 14, 20, 44, 8.0, 78, weight="Medium", fly_at=(3.0, 5.4)),
 ]
-N = len(LEVELS)
 
 
 def odd_cell(L):
@@ -47,7 +46,7 @@ def cell(L, i, j):
     return x0 + cw * (i + 0.5), y0 + ch * (j + 0.5), max(cw, ch)
 
 
-def draw_level(c, t, L, k):
+def draw_level(c, t, L, k, N=8, hook="NUR 2 % FINDEN ALLE 8"):
     c.fill(BG)
     T = L["t_find"]
     solved = ease(prog(t, T, T + 0.3))
@@ -69,7 +68,7 @@ def draw_level(c, t, L, k):
                      130, 80 + k)
         if p:
             fly(c, *p, t, s=2.0)
-    label = "NUR 2 % FINDEN ALLE 8" if k == 0 else f"LEVEL {k + 1} / {N}"
+    label = hook if k == 0 else f"LEVEL {k + 1} / {N}"
     ui(c, t, k + 1, label, L["q"], 0.3, T, T, "Gefunden?", "Schreib deine Zeit in die Kommentare")
     if L["cat_line"]:
         cat_say(c, t, *L["cat_line"])
@@ -86,7 +85,7 @@ def level_snd(L):
     return s
 
 
-def s_outro(c, t):
+def s_outro(c, t, cat_txt="Level 7 war gemein, oder?", cta="FOLGEN für Teil 2"):
     c.fill(BG)
     a = ease_out(prog(t, 0, 0.3))
     text_block(c, [("Bei welchem Level", WHITE), ("warst du raus?", WHITE)], 860, 70, a)
@@ -94,16 +93,18 @@ def s_outro(c, t):
     text_block(c, [("1 2 3 4 5 6 7 8", GOLD)], 1060, 70, b)
     c.text(CX, 1160, "Schick das deinem Freund mit Adleraugen", 36, (*WHITE, int(220 * b)))
     cat(c, t + 3, talk=0.0, mood="happy")
-    speech_right(c, "Level 7 war gemein, oder?", ease_out(prog(t, 0.3, 0.5)), y=520)
+    speech_right(c, cat_txt, ease_out(prog(t, 0.3, 0.5)), y=520)
     f = ease_out(prog(t, 1.6, 2.0))
     if f > 0:
-        follow_cta(c, f, "FOLGEN für Teil 2")
+        follow_cta(c, f, cta)
 
 
-def make():
-    scenes = [Scene(L["t_find"] + REVEAL, lambda c, t, L=L, k=k: draw_level(c, t, L, k), None, level_snd(L),
-                    header=False, zoom=1.0, ty=1330.0) for k, L in enumerate(LEVELS)]
-    scenes.append(Scene(4.3, s_outro, None, [(0.0, sfx.whoosh(0.4), 0.5), (0.3, meow(0.6, 1.1), 0.6),
+def make(levels=LEVELS, hook="NUR 2 % FINDEN ALLE 8", cat_txt="Level 7 war gemein, oder?",
+         cta="FOLGEN für Teil 2"):
+    n = len(levels)
+    scenes = [Scene(L["t_find"] + REVEAL, lambda c, t, L=L, k=k: draw_level(c, t, L, k, n, hook), None, level_snd(L),
+                    header=False, zoom=1.0, ty=1330.0) for k, L in enumerate(levels)]
+    scenes.append(Scene(4.3, lambda c, t: s_outro(c, t, cat_txt, cta), None, [(0.0, sfx.whoosh(0.4), 0.5), (0.3, meow(0.6, 1.1), 0.6),
                                              (0.6, purr(1.5), 0.5)], header=False, zoom=1.0, ty=1330.0))
     return Film("Finde den Buchstaben", "8 Level", scenes)
 
