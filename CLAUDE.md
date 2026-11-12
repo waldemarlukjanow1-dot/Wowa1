@@ -1,6 +1,7 @@
 # TikTok-Videoprojekt
 
 ## Arbeitsweise (Wunsch des Nutzers, immer einhalten)
+- **Freigabe-Befehl: „du darfst“.** Ein Video wird NUR gerendert, wenn der Nutzer „du darfst“ schreibt. Vorher nur Storyboard (bzw. ElevenLabs-Text) liefern – auch wenn er „erstell ein Video“ schreibt.
 - **Vor jedem Video zuerst ein Storyboard zeigen** – als **Bilder** (ein echtes Vorschaubild pro Szene, so wie es im Video aussieht, mit Zeit + Beschreibung darunter) plus kurze Tabelle (Szenen, Zeiten, Einblendungen, Bewegungen, Sounds). Auf Freigabe warten, erst nach dem OK rendern.
 - TikTok-Abstände einhalten: nichts Wichtiges oben < 190 px, rechts > 930 px (Like-/Kommentar-/Teilen-Spalte) und unten > 1480 px (Bildunterschrift).
 - Videos für das Creator-Rewards-Programm müssen **länger als 60 Sekunden** sein.
