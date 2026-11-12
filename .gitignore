@@ -3,3 +3,5 @@ __pycache__/
 output/preview*/
 output/*.wav
 output/*_audio.wav
+# edits of third-party uploads stay local
+output/tiktok_*.mp4
